@@ -8,6 +8,7 @@
 #include <BLE2904.h>
 #include <Wire.h>
 #include <Adafruit_DRV2605.h>
+#include "time.h"
 
 #define LED_PIN 2
 #define BUTTON_PIN 1
@@ -59,6 +60,22 @@ class MyCallbacks : public BLECharacteristicCallbacks
   }
 };
 
+void setTimeFromPillulier(int yr, int month, int mday, int hr, int minute, int sec, int isDst) {
+  Serial.printf("Paramètrage de l'ESP-32 à l'heure du pillulier'...");
+  struct tm tm;
+  tm.tm_year = yr - 1900;
+  tm.tm_mon = month -1;
+  tm.tm_mday = mday;
+  tm.tm_hour = hr;
+  tm.tm_min = minute;
+  tm.tm_sec = sec;
+  tm.tm_isdst = isDst;
+  time_t t = mktime(&tm);
+  Serial.printf("Paramètrage de l'heure: %s", asctime(&tm));
+  struct timeval now = {.tv_sec = t};
+  settimeofday(&now, NULL);
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -92,6 +109,7 @@ void setup()
 
 void loop()
 {
+
   if (digitalRead(BUTTON_PIN) == LOW)
   {
     pCharacteristic->setValue("OFF");
