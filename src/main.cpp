@@ -1,12 +1,16 @@
 #include <esp_now.h>
 #include <WiFi.h>
-/// AJOUTER L'HEURE POUR VIBRER ET AUSSI LORS DE L'APPUIE SUR UN BOUTON ARRETER DE FAIRE VIBRER
+#include <Adafruit_DRV2605.h>
+#include "time.h"
+//TODO AJOUTER L'HEURE POUR VIBRER ET AUSSI LORS DE L'APPUIE SUR UN BOUTON ARRETER DE FAIRE VIBRER
 #define LED_PIN 1
 #define LED_RED_PIN 2
 #define LED_GREEN_PIN 3
 #define LED_BLUE_PIN 4
-#include "time.h"
+
+Adafruit_DRV2605 drv;
 String dataValue = "OFF";
+
 typedef struct struct_message
 {
   char a[32];
@@ -29,6 +33,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   else if (strcmp(incomingMessage.a, "LED_OFF") == 0)
   {
     digitalWrite(LED_PIN, LOW);
+    drv.stop();
   }
   else if (strcmp(incomingMessage.a, "LED_FRANCE") == 0)
   {
@@ -79,11 +84,7 @@ void setup()
 void loop()
 {
   digitalWrite(LED_PIN, LOW);
-  if (digitalRead(BUTTON_PIN) == LOW)
-  {
-    pCharacteristic->setValue("OFF");
-    pCharacteristic->notify();
-  }
+
   if(dataValue == "ON") {
       drv.setWaveform(0, 1);
       drv.setWaveform(1,0);
