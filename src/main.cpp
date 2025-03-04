@@ -45,7 +45,7 @@ struct tm tm;
 esp_now_peer_info_t peerInfo;
 String horaires = "";
 boolean stopReceived = false;
-
+boolean messageReceived = false;
 u_int8_t calculateWeekDay(const char *currentDay)
 {
   if (currentDay == "Lundi")
@@ -96,21 +96,22 @@ void setTimeFromPillulier(JsonDocument json)
 {
   Serial.printf("Paramètrage de l'ESP-32 à l'heure du pillulier'...");
   const char *currentDay = json["currentDay"];
-  for (size_t i = 0; i < json["datetime"].size(); i++)
+  for (size_t i = 0; i < json["date"].size(); i++)
   {
-    Serial.printf("date: %d", json["datetime"][i]);
-    Serial.println();
+    //Serial.printf(json["date"][i]);
+    //Serial.println();
   }
-  
-  u_int16_t year = json["datetime"][0];
-  u_int8_t month = json["datetime"][1];
+
+  u_int16_t year = json["date"][0];
+  u_int8_t month = json["date"][1];
+  u_int8_t hour = json["date"][3];
   tm.tm_year = year - 1900;
   tm.tm_mon = month - 1;
-  tm.tm_mday = json["datetime"][2];
+  tm.tm_mday = json["date"][2];
   tm.tm_wday = calculateWeekDay(currentDay);
-  tm.tm_hour = json["datetime"][3];
-  tm.tm_min = json["datetime"][4];
-  tm.tm_sec = json["datetime"][5];
+  tm.tm_hour = hour + 1;
+  tm.tm_min = json["date"][4];
+  tm.tm_sec = json["date"][5];
   tm.tm_isdst = defineSummerHour(tm.tm_mon, tm.tm_mday, tm.tm_hour);
   time_t t = mktime(&tm);
   Serial.printf("Paramètrage de l'heure: %s", asctime(&tm));
@@ -118,7 +119,7 @@ void setTimeFromPillulier(JsonDocument json)
   settimeofday(&now, NULL);
 }
 
-void deserializeDatasFromPilullier() 
+void deserializeDatasFromPilullier()
 {
   String datas = preferences.getString("HOR_P_G");
   horaires = datas;
@@ -127,25 +128,27 @@ void deserializeDatasFromPilullier()
   JsonDocument json;
   deserializeJson(json, datas);
   setTimeFromPillulier(json);
-  JsonObject schedule = json["schedule"];
-  
-  Serial.print("---------------------------");
-  Serial.printf("SCHEDULE %s", schedule);
-  
+  // JsonObject schedule = json["schedule"];
+
+  // Serial.print("---------------------------");
+  // Serial.printf("SCHEDULE %s", schedule);
 }
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
   memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
 
-  if (strcmp(incomingMessage.c,"json") == 0)
+  if (strcmp(incomingMessage.c, "json") == 0)
   {
     preferences.putString("HOR_P_G", incomingMessage.j);
     Serial.printf("Nouveaux Horaires: %s", incomingMessage.j);
     horaires = incomingMessage.j;
-    //deserializeDatasFromPilullier();
-  } else if (strcmp(incomingMessage.c,"STOP") == 0) {
-    reponseEnvoyee = true;
+    deserializeDatasFromPilullier();
+    messageReceived = true;
+  }
+  else if (strcmp(incomingMessage.c, "STOP") == 0)
+  {
+    reponseEnvoyee = false;
     stopReceived = true;
   }
 }
@@ -159,64 +162,77 @@ void getDays()
 {
   JsonDocument json;
   deserializeJson(json, horaires);
-  JsonObject schedule = json["schedule"];
+
   switch (tm.tm_wday)
   {
   case 0:
-    if (schedule["Dimanche"])
+    if (json["sunday"])
     {
-      for (size_t i = 0; i < schedule["Dimanche"].size(); i++)
+      for (size_t i = 0; i < json["sunday"].size(); i++)
       {
-        printf("Horaires du dimanche: %s", schedule["Dimanche"][i]);
+        printf("Horaires du dimanche: %s", json["sunday"][i]);
       }
     }
   case 1:
-    if (schedule["Lundi"])
+    if (json["monday"])
     {
-      for (size_t i = 0; i < schedule["Lundi"].size(); i++)
+      for (size_t i = 0; i < json["monday"].size(); i++)
       {
-        printf("Horaires du lundi: %s", schedule["Lundi"][i]);
+        printf("Horaires du lundi: %s", json["monday"][i]);
       }
     }
     break;
   case 2:
-    if (schedule["Mardi"])
+    for (size_t i = 0; i < json["tuesday"].size(); i++)
     {
-      for (size_t i = 0; i < schedule["Mardi"].size(); i++)
-      {
-        printf("Horaires du Mardi: %s", schedule["Mardi"][i]);
+      Serial.print("ON EST MARDI PENSEZ À PRENDRE VOS MÉDICAMENTS À: ");
+      Serial.println();
+      Serial.printf(json["tuesday"][i]);
+      Serial.println();
+      String horaireChar = json["tuesday"][i];
+      String heureStr = horaireChar.substring(0,2);
+      String minuteStr = horaireChar.substring(3,5);
+      uint8_t heure = heureStr.toInt();
+      uint8_t minute = minuteStr.toInt();
+      Serial.println(heure);
+      Serial.println(minute);
+
+      if((tm.tm_hour == heure +1) && tm.tm_min == minute) {
+        Serial.print("PRENEZ VOS MEDICAMENTS");
       }
     }
+    
+    break;
   case 3:
-    if (schedule["Mercredi"])
+    if (json["Mercredi"])
     {
-      for (size_t i = 0; i < schedule["Mercredi"].size(); i++)
+      for (size_t i = 0; i < json["Mercredi"].size(); i++)
       {
-        printf("Horaires du Mercredi: %s", schedule["Mercredi"][i]);
+        printf("Horaires du Mercredi: %s", json["Mercredi"][i]);
       }
     }
   case 4:
-    if (schedule["Jeudi"])
+    if (json["Jeudi"])
     {
-      for (size_t i = 0; i < schedule["Jeudi"].size(); i++)
+      for (size_t i = 0; i < json["Jeudi"].size(); i++)
       {
-        printf("Horaires du jeudi: %s", schedule["Jeudi"][i]);
+        printf("Horaires du jeudi: %s", json["Jeudi"][i]);
       }
     }
   case 5:
-    if (schedule["Vendredi"])
+    if (json["Vendredi"])
     {
-      for (size_t i = 0; i < schedule["Vendredi"].size(); i++)
+      for (size_t i = 0; i < json["Vendredi"].size(); i++)
       {
-        printf("Horaires du vendredi: %s", schedule["Vendredi"][i]);
+        printf("Horaires du vendredi: %s", json["Vendredi"][i]);
       }
     }
   case 6:
-    if (schedule["Samedi"])
+    if (json["Samedi"])
     {
-      for (size_t i = 0; i < schedule["Samedi"].size(); i++)
+      for (size_t i = 0; i < json["Samedi"].size(); i++)
       {
-        printf("Horaires du samedi: %s", schedule["Samedi"][i]);
+        printf("Horaires du samedi: %s", json["Samedi"][i]);
       }
     }
   default:
@@ -226,6 +242,7 @@ void getDays()
 
 void setup()
 {
+  Wire.begin();
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
@@ -254,24 +271,26 @@ void setup()
     return;
   }
   // esp_now_send
-  // drv.selectLibrary(1);
-  // drv.setMode(DRV2605_MODE_INTTRIG);
+  drv.begin();
+  drv.selectLibrary(1);
+  drv.setMode(DRV2605_MODE_INTTRIG);
 }
 
 void loop()
 {
   digitalWrite(LED_PIN, LOW);
-  Serial.print("Test");
-  if (horaires != "" && reponseEnvoyee == false)
+  Serial.print(reponseEnvoyee);
+  if (messageReceived == true && reponseEnvoyee == false)
   {
     strncpy(messageReponse.r, "OK", 32);
     Serial.printf("Reponse: %s", messageReponse.r);
     esp_err_t result = esp_now_send(mac_pilullier, (u_int8_t *)&messageReponse, sizeof(messageReponse));
+    getDays();
     reponseEnvoyee = true;
+    messageReceived = false;
+    stopReceived = false;
   }
 
-  getDays();
-  
   if (reponseEnvoyee == true && stopReceived == false)
   {
     drv.setWaveform(0, 1);
